@@ -80,9 +80,7 @@ services:
     environment:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
     command: mlflow server --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB} --default-artifact-root s3://${AWS_S3_BUCKET}/ --host 0.0.0.0
 
 volumes:
@@ -95,30 +93,3 @@ networks:
     driver: bridge
   minio_app:
     driver: bridge
-#
-#  minio:
-#    container_name: minio
-#    hostname: minio
-#    image: quay.io/minio/minio:RELEASE.2022-05-08T23-50-31Z
-#    command: server --console-address ":9001" /data/
-#    expose:
-#      - "9000"
-#      - "9001"
-#    networks:
-#      - s3
-#    environment:
-#      MINIO_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
-#      MINIO_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
-#    healthcheck:
-#      test:
-#        [
-#          "CMD",
-#          "curl",
-#          "-f",
-#          "http://localhost:9000/minio/health/live"
-#        ]
-#      interval: 30s
-#      timeout: 20s
-#      retries: 3
-#    volumes:
-#      - ./Docker/minio/:/data
