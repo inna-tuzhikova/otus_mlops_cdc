@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    ports:
+      - "9443:9443"
+    volumes:
+      - portainer-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+  db:
+    container_name: pg_container
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /data/postgres
+    volumes:
+      - postgres:/data/postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - postgres
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - my-data:/var/lib/pgadmin
+    networks:
+      - postgres
+    depends_on:
+      - db
+  minio:
+    container_name: minio
+    image: quay.io/minio/minio:RELEASE.2023-06-09T07-32-12Z
+    command: server --console-address ":9001" /data/
+    restart: always
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    networks:
+      - minio_app
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:9000/minio/health/live"
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    volumes:
+      - ./minio/:/data
+
+  mlflow:
+    container_name: mlflow_server
+    restart: always
+    build: ./mlflow_image
+    image: mlflow_server
+    ports:
+      - "5000:5000"
+    networks:
+      - postgres
+      - minio_app
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+    command: mlflow server --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB} --default-artifact-root s3://${AWS_S3_BUCKET}/ --host 0.0.0.0
+
+volumes:
+  portainer-data:
+  postgres:
+  my-data:
+
+networks:
+  postgres:
+    driver: bridge
+  minio_app:
+    driver: bridge
+#
+#  minio:
+#    container_name: minio
+#    hostname: minio
+#    image: quay.io/minio/minio:RELEASE.2022-05-08T23-50-31Z
+#    command: server --console-address ":9001" /data/
+#    expose:
+#      - "9000"
+#      - "9001"
+#    networks:
+#      - s3
+#    environment:
+#      MINIO_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
+#      MINIO_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
+#    healthcheck:
+#      test:
+#        [
+#          "CMD",
+#          "curl",
+#          "-f",
+#          "http://localhost:9000/minio/health/live"
+#        ]
+#      interval: 30s
+#      timeout: 20s
+#      retries: 3
+#    volumes:
+#      - ./Docker/minio/:/data
